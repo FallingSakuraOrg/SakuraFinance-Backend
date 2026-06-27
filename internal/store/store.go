@@ -203,6 +203,44 @@ func (s *Store) ListAdmins(ctx context.Context) ([]*User, error) {
 	return list, rows.Err()
 }
 
+// ListUsers 返回全部普通用户账户（供管理员查看与充值）。
+func (s *Store) ListUsers(ctx context.Context) ([]*User, error) {
+	query := s.rebind("SELECT " + userColumns + " FROM users WHERE role = ? ORDER BY id DESC")
+	rows, err := s.db.QueryContext(ctx, query, "user")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []*User
+	for rows.Next() {
+		u, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, u)
+	}
+	return list, rows.Err()
+}
+
+// AddBalance 给用户增加余额（amount 为正数），返回更新后的余额。
+// 用于管理员手动充值与用户自助充值（模拟支付成功）。
+func (s *Store) AddBalance(ctx context.Context, userID int64, amount float64) (float64, error) {
+	query := s.rebind("UPDATE users SET balance = balance + ?, updated_at = ? WHERE id = ?")
+	res, err := s.db.ExecContext(ctx, query, amount, time.Now(), userID)
+	if err != nil {
+		return 0, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return 0, ErrUserNotFound
+	}
+	u, err := s.GetByID(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	return u.Balance, nil
+}
+
 // wrapInsertErr 将唯一约束冲突归一化为 ErrUserExists。
 func wrapInsertErr(err error) error {
 	if err == nil {

@@ -19,6 +19,7 @@ const (
 
 // PaymentMethod 支付方式配置项。本阶段仅存配置，不接真网关。
 type PaymentMethod struct {
+	Type    string `json:"type"`    // 网关类型：alipay/wechat/alipayplus/stripe
 	Name    string `json:"name"`    // 展示名，如「支付宝」「微信支付」
 	Enabled bool   `json:"enabled"` // 是否启用，前台仅展示启用项
 	Account string `json:"account"` // 商户号/appid 等

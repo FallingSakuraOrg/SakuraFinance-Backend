@@ -190,7 +190,8 @@ func (s *Server) handleRemoveCart(w http.ResponseWriter, r *http.Request) {
 // ---- 结算 ----
 
 // handleCheckout 处理 POST /api/checkout：由购物车生成订单。
-// 本阶段支持余额支付（payMethod=balance）；选择支付网关时返回未接入提示。
+// payMethod 为空或 "balance" 时走余额支付；否则需为已启用的支付网关类型
+// （本阶段网关支付模拟成功，不动余额）。
 func (s *Server) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	uid, st, ok2 := s.authUserStore(w, r)
 	if !ok2 {
@@ -203,14 +204,19 @@ func (s *Server) handleCheckout(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "请求格式错误")
 		return
 	}
-	if body.PayMethod != "" && body.PayMethod != "balance" {
-		fail(w, http.StatusBadRequest, "支付网关尚未接入，请使用余额支付")
+	payMethod := body.PayMethod
+	if payMethod == "" {
+		payMethod = "balance"
+	}
+	// 网关支付需校验该网关已配置且启用。
+	if payMethod != "balance" && !s.isGatewayEnabled(payMethod) {
+		fail(w, http.StatusBadRequest, "该支付方式不可用")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
-	order, err := st.CheckoutByBalance(ctx, uid, newOrderNo())
+	order, err := st.Checkout(ctx, uid, newOrderNo(), payMethod)
 	switch {
 	case errors.Is(err, store.ErrEmptyCart):
 		fail(w, http.StatusBadRequest, "购物车为空")
@@ -322,4 +328,65 @@ func (s *Server) authUserStore(w http.ResponseWriter, r *http.Request) (int64, *
 func newOrderNo() string {
 	return fmt.Sprintf("%s%s", time.Now().Format("20060102150405"),
 		strings.ToUpper(uuid.NewString()[:6]))
+}
+
+// ---- 支付方式（公开）与充值 ----
+
+// handlePublicPaymentMethods 处理 GET /api/payment-methods：
+// 返回已启用支付网关的 type 与 name，绝不下发 account/secret。
+func (s *Server) handlePublicPaymentMethods(w http.ResponseWriter, r *http.Request) {
+	cfg := s.cfg.Get()
+	list := make([]map[string]string, 0, len(cfg.PaymentMethods))
+	for _, m := range cfg.PaymentMethods {
+		if m.Enabled {
+			list = append(list, map[string]string{"type": m.Type, "name": m.Name})
+		}
+	}
+	ok(w, map[string]any{"paymentMethods": list})
+}
+
+// isGatewayEnabled 判断给定网关类型是否已配置并启用。
+func (s *Server) isGatewayEnabled(payType string) bool {
+	for _, m := range s.cfg.Get().PaymentMethods {
+		if m.Enabled && m.Type == payType {
+			return true
+		}
+	}
+	return false
+}
+
+// handleRecharge 处理 POST /api/recharge：用户自助充值。
+// 本阶段网关支付为模拟成功，校验通过后直接增加余额。
+// TODO: 接入真实支付网关后，应改为创建充值订单 → 跳转支付 → 收到回调再加余额。
+func (s *Server) handleRecharge(w http.ResponseWriter, r *http.Request) {
+	uid, st, ok2 := s.authUserStore(w, r)
+	if !ok2 {
+		return
+	}
+	var body struct {
+		Amount    float64 `json:"amount"`
+		PayMethod string  `json:"payMethod"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		fail(w, http.StatusBadRequest, "请求格式错误")
+		return
+	}
+	if body.Amount <= 0 {
+		fail(w, http.StatusBadRequest, "充值金额必须大于 0")
+		return
+	}
+	// 充值必须经由支付网关；无可用网关时引导用户联系管理员。
+	if !s.isGatewayEnabled(body.PayMethod) {
+		fail(w, http.StatusBadRequest, "请联系站点管理员手动充值")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	balance, err := st.AddBalance(ctx, uid, body.Amount)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "充值失败："+err.Error())
+		return
+	}
+	ok(w, map[string]any{"balance": balance})
 }

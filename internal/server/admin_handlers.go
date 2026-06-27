@@ -334,3 +334,51 @@ func (s *Server) handleAdminCreateAdmin(w http.ResponseWriter, r *http.Request) 
 func pathID(r *http.Request, name string) (int64, error) {
 	return strconv.ParseInt(r.PathValue(name), 10, 64)
 }
+
+// ---- 用户管理与手动充值 ----
+
+func (s *Server) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
+	st := s.getStore()
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	users, err := st.ListUsers(ctx)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "查询失败："+err.Error())
+		return
+	}
+	ok(w, map[string]any{"users": users})
+}
+
+// handleAdminRecharge 处理 POST /api/admin/users/{id}/recharge：管理员手动给用户加余额。
+func (s *Server) handleAdminRecharge(w http.ResponseWriter, r *http.Request) {
+	st := s.getStore()
+	id, err := pathID(r, "id")
+	if err != nil {
+		fail(w, http.StatusBadRequest, "无效的用户 id")
+		return
+	}
+	var body struct {
+		Amount float64 `json:"amount"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		fail(w, http.StatusBadRequest, "请求格式错误")
+		return
+	}
+	if body.Amount <= 0 {
+		fail(w, http.StatusBadRequest, "充值金额必须大于 0")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	balance, err := st.AddBalance(ctx, id, body.Amount)
+	if errors.Is(err, store.ErrUserNotFound) {
+		fail(w, http.StatusNotFound, "用户不存在")
+		return
+	}
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "充值失败："+err.Error())
+		return
+	}
+	ok(w, map[string]any{"balance": balance})
+}

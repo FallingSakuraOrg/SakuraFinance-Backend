@@ -39,10 +39,13 @@ type OrderItem struct {
 // instanceTTL 云服务器实例默认有效期（30 天）。
 const instanceTTL = 30 * 24 * time.Hour
 
-// CheckoutByBalance 以余额支付方式结算用户购物车，事务内完成：
-// 校验余额 → 建订单与明细 → 扣余额 → 生成云服务器实例 → 清空购物车。
+// Checkout 结算用户购物车，事务内完成：
+// 建订单与明细 → 扣库存 → 生成云服务器实例 → 清空购物车。
+// payMethod=="balance" 时额外校验并扣减余额；网关支付（本阶段模拟成功）不动余额。
 // 返回创建好的订单。
-func (s *Store) CheckoutByBalance(ctx context.Context, userID int64, orderNo string) (*Order, error) {
+func (s *Store) Checkout(ctx context.Context, userID int64, orderNo, payMethod string) (*Order, error) {
+	useBalance := payMethod == "balance"
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -98,14 +101,16 @@ func (s *Store) CheckoutByBalance(ctx context.Context, userID int64, orderNo str
 		return nil, ErrEmptyCart
 	}
 
-	// 2. 校验余额。
-	var balance float64
-	balQuery := s.rebind("SELECT balance FROM users WHERE id = ?")
-	if err := tx.QueryRowContext(ctx, balQuery, userID).Scan(&balance); err != nil {
-		return nil, err
-	}
-	if balance < total {
-		return nil, ErrInsufficientBalance
+	// 2. 余额支付时校验余额（网关支付本阶段模拟成功，不校验）。
+	if useBalance {
+		var balance float64
+		balQuery := s.rebind("SELECT balance FROM users WHERE id = ?")
+		if err := tx.QueryRowContext(ctx, balQuery, userID).Scan(&balance); err != nil {
+			return nil, err
+		}
+		if balance < total {
+			return nil, ErrInsufficientBalance
+		}
 	}
 
 	now := time.Now()
@@ -114,7 +119,7 @@ func (s *Store) CheckoutByBalance(ctx context.Context, userID int64, orderNo str
 		UserID:      userID,
 		TotalAmount: total,
 		Status:      "paid",
-		PayMethod:   "balance",
+		PayMethod:   payMethod,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -163,11 +168,14 @@ func (s *Store) CheckoutByBalance(ctx context.Context, userID int64, orderNo str
 		}
 	}
 
-	// 4. 扣余额。
-	if _, err := tx.ExecContext(ctx,
-		s.rebind("UPDATE users SET balance = balance - ?, updated_at = ? WHERE id = ?"),
-		total, now, userID); err != nil {
-		return nil, err
+	// 4. 余额支付时扣减余额；网关支付（模拟成功）不动余额。
+	// TODO: 接入真实支付网关后，网关支付应在收到回调确认后再标记订单 paid。
+	if useBalance {
+		if _, err := tx.ExecContext(ctx,
+			s.rebind("UPDATE users SET balance = balance - ?, updated_at = ? WHERE id = ?"),
+			total, now, userID); err != nil {
+			return nil, err
+		}
 	}
 
 	// 5. 清空购物车。

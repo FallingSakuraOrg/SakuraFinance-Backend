@@ -53,6 +53,8 @@ func (s *Server) Routes() http.Handler {
 	// 公开商品浏览。
 	mux.HandleFunc("GET /api/categories", s.handleListCategories)
 	mux.HandleFunc("GET /api/products", s.handleListProducts)
+	// 公开支付方式（仅 type/name，供前台展示可用网关）。
+	mux.HandleFunc("GET /api/payment-methods", s.handlePublicPaymentMethods)
 
 	// 用户购物车与订单（需登录）。
 	mux.HandleFunc("GET /api/cart", s.requireAuth(s.handleGetCart))
@@ -60,6 +62,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("PUT /api/cart/{id}", s.requireAuth(s.handleUpdateCart))
 	mux.HandleFunc("DELETE /api/cart/{id}", s.requireAuth(s.handleRemoveCart))
 	mux.HandleFunc("POST /api/checkout", s.requireAuth(s.handleCheckout))
+	mux.HandleFunc("POST /api/recharge", s.requireAuth(s.handleRecharge))
 	mux.HandleFunc("GET /api/orders", s.requireAuth(s.handleListOrders))
 	mux.HandleFunc("GET /api/instances", s.requireAuth(s.handleListInstances))
 
@@ -77,6 +80,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("PUT /api/admin/payment", s.requireAdmin(s.handleAdminUpdatePayment))
 	mux.HandleFunc("GET /api/admin/admins", s.requireAdmin(s.handleAdminListAdmins))
 	mux.HandleFunc("POST /api/admin/admins", s.requireAdmin(s.handleAdminCreateAdmin))
+	mux.HandleFunc("GET /api/admin/users", s.requireAdmin(s.handleAdminListUsers))
+	mux.HandleFunc("POST /api/admin/users/{id}/recharge", s.requireAdmin(s.handleAdminRecharge))
 
 	// 提供已上传的 logo 静态访问。
 	mux.Handle("GET /uploads/", http.StripPrefix("/uploads/",
