@@ -9,12 +9,20 @@ import (
 
 // Migrate 创建应用所需的表结构，针对不同数据库方言使用对应 DDL。
 func Migrate(db *sql.DB, dbType config.DBType) error {
-	for _, stmt := range usersTableDDL(dbType) {
+	for _, stmt := range tableDDLs(dbType) {
 		if _, err := db.Exec(stmt); err != nil {
 			return fmt.Errorf("建表失败: %w", err)
 		}
 	}
 	return nil
+}
+
+// tableDDLs 汇总所有表的建表语句，按依赖顺序返回（被引用表在前）。
+func tableDDLs(dbType config.DBType) []string {
+	var stmts []string
+	stmts = append(stmts, usersTableDDL(dbType)...)
+	stmts = append(stmts, shopTableDDL(dbType)...)
+	return stmts
 }
 
 // usersTableDDL 返回 users 表的建表语句。

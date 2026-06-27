@@ -122,6 +122,14 @@ func (s *Server) handleInit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg.JWTSecret = secret
+	// 生成管理后台登录入口的随机后缀（URL 仅作隐蔽，鉴权仍靠管理员 token）。
+	slug, err := randomSlug()
+	if err != nil {
+		_ = db.Close()
+		fail(w, http.StatusInternalServerError, "入口标识生成失败")
+		return
+	}
+	cfg.AdminSlug = slug
 	if err := s.cfg.Save(cfg); err != nil {
 		_ = db.Close()
 		fail(w, http.StatusInternalServerError, "配置保存失败："+err.Error())
@@ -206,7 +214,7 @@ func (s *Server) handleCreateAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok(w, map[string]any{"userId": user.ID})
+	ok(w, map[string]any{"userId": user.ID, "adminSlug": s.cfg.AdminSlug()})
 }
 
 // saveLogo 保存上传的 logo 文件，返回相对访问路径；无文件时返回空字符串。

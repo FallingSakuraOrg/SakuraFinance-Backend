@@ -47,7 +47,36 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/register", s.handleRegister)
 	mux.HandleFunc("POST /api/login", s.handleLogin)
 	mux.HandleFunc("GET /api/me", s.requireAuth(s.handleMe))
+	mux.HandleFunc("PUT /api/me", s.requireAuth(s.handleUpdateProfile))
 	mux.HandleFunc("GET /api/status", s.handleStatus)
+
+	// 公开商品浏览。
+	mux.HandleFunc("GET /api/categories", s.handleListCategories)
+	mux.HandleFunc("GET /api/products", s.handleListProducts)
+
+	// 用户购物车与订单（需登录）。
+	mux.HandleFunc("GET /api/cart", s.requireAuth(s.handleGetCart))
+	mux.HandleFunc("POST /api/cart", s.requireAuth(s.handleAddCart))
+	mux.HandleFunc("PUT /api/cart/{id}", s.requireAuth(s.handleUpdateCart))
+	mux.HandleFunc("DELETE /api/cart/{id}", s.requireAuth(s.handleRemoveCart))
+	mux.HandleFunc("POST /api/checkout", s.requireAuth(s.handleCheckout))
+	mux.HandleFunc("GET /api/orders", s.requireAuth(s.handleListOrders))
+	mux.HandleFunc("GET /api/instances", s.requireAuth(s.handleListInstances))
+
+	// 管理后台。登录入口公开（内部校验 slug + 管理员角色），其余需管理员权限。
+	mux.HandleFunc("POST /api/admin/login", s.handleAdminLogin)
+	mux.HandleFunc("GET /api/admin/slug", s.requireAdmin(s.handleAdminSlug))
+	mux.HandleFunc("GET /api/admin/products", s.requireAdmin(s.handleAdminListProducts))
+	mux.HandleFunc("POST /api/admin/products", s.requireAdmin(s.handleAdminCreateProduct))
+	mux.HandleFunc("PUT /api/admin/products/{id}", s.requireAdmin(s.handleAdminUpdateProduct))
+	mux.HandleFunc("DELETE /api/admin/products/{id}", s.requireAdmin(s.handleAdminDeleteProduct))
+	mux.HandleFunc("POST /api/admin/categories", s.requireAdmin(s.handleAdminCreateCategory))
+	mux.HandleFunc("PUT /api/admin/categories/{id}", s.requireAdmin(s.handleAdminUpdateCategory))
+	mux.HandleFunc("DELETE /api/admin/categories/{id}", s.requireAdmin(s.handleAdminDeleteCategory))
+	mux.HandleFunc("GET /api/admin/payment", s.requireAdmin(s.handleAdminGetPayment))
+	mux.HandleFunc("PUT /api/admin/payment", s.requireAdmin(s.handleAdminUpdatePayment))
+	mux.HandleFunc("GET /api/admin/admins", s.requireAdmin(s.handleAdminListAdmins))
+	mux.HandleFunc("POST /api/admin/admins", s.requireAdmin(s.handleAdminCreateAdmin))
 
 	// 提供已上传的 logo 静态访问。
 	mux.Handle("GET /uploads/", http.StripPrefix("/uploads/",

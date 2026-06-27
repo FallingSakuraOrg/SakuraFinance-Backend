@@ -17,6 +17,14 @@ const (
 	DBPostgreSQL DBType = "PostgreSQL"
 )
 
+// PaymentMethod 支付方式配置项。本阶段仅存配置，不接真网关。
+type PaymentMethod struct {
+	Name    string `json:"name"`    // 展示名，如「支付宝」「微信支付」
+	Enabled bool   `json:"enabled"` // 是否启用，前台仅展示启用项
+	Account string `json:"account"` // 商户号/appid 等
+	Secret  string `json:"secret,omitempty"` // 密钥，绝不通过公开接口下发
+}
+
 // SystemConfig 系统初始化时持久化的配置，落盘到 data/config.json。
 type SystemConfig struct {
 	Name          string `json:"name"`
@@ -29,6 +37,8 @@ type SystemConfig struct {
 	DBPassword    string `json:"dbPassword,omitempty"`
 	DBName        string `json:"dbName,omitempty"`
 	JWTSecret     string `json:"jwtSecret,omitempty"`     // JWT 签名密钥，初始化时随机生成
+	AdminSlug     string `json:"adminSlug,omitempty"`     // 管理后台登录 URL 随机后缀，初始化时生成
+	PaymentMethods []PaymentMethod `json:"paymentMethods,omitempty"` // 支付方式配置
 	Initialized   bool   `json:"initialized"`   // 系统配置是否已完成
 	AdminCreated  bool   `json:"adminCreated"`  // 管理员是否已创建
 }
@@ -124,4 +134,11 @@ func (m *Manager) JWTSecret() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.current.JWTSecret
+}
+
+// AdminSlug 返回管理后台登录 URL 的随机后缀。
+func (m *Manager) AdminSlug() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.current.AdminSlug
 }

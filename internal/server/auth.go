@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"net/http"
 	"strings"
@@ -31,6 +32,15 @@ func randomSecret() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// randomSlug 生成 URL 安全的随机短串，用作管理后台登录入口后缀。
+func randomSlug() (string, error) {
+	b := make([]byte, 9) // 9 字节 -> base64url 12 字符，无填充
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // signToken 为指定用户签发 JWT。
@@ -87,4 +97,16 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 func userFromContext(ctx context.Context) (*authClaims, bool) {
 	claims, ok := ctx.Value(ctxUserKey{}).(*authClaims)
 	return claims, ok
+}
+
+// requireAdmin 在 requireAuth 基础上要求 admin 角色，否则 403。
+func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := userFromContext(r.Context())
+		if !ok || claims.Role != "admin" {
+			fail(w, http.StatusForbidden, "需要管理员权限")
+			return
+		}
+		next(w, r)
+	})
 }
