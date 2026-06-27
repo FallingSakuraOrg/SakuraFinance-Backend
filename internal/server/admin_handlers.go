@@ -382,3 +382,106 @@ func (s *Server) handleAdminRecharge(w http.ResponseWriter, r *http.Request) {
 	}
 	ok(w, map[string]any{"balance": balance})
 }
+
+// handleAdminUpdateUser 处理 PUT /api/admin/users/{id}：修改用户昵称与用户名。
+func (s *Server) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request) {
+	st := s.getStore()
+	id, err := pathID(r, "id")
+	if err != nil {
+		fail(w, http.StatusBadRequest, "无效的用户 id")
+		return
+	}
+	var body struct {
+		Nickname string `json:"nickname"`
+		Username string `json:"username"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		fail(w, http.StatusBadRequest, "请求格式错误")
+		return
+	}
+	body.Nickname = strings.TrimSpace(body.Nickname)
+	body.Username = strings.TrimSpace(body.Username)
+	if body.Nickname == "" || body.Username == "" {
+		fail(w, http.StatusBadRequest, "昵称和用户名不能为空")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	err = st.AdminUpdateUser(ctx, id, body.Nickname, body.Username)
+	if errors.Is(err, store.ErrUserNotFound) {
+		fail(w, http.StatusNotFound, "用户不存在")
+		return
+	}
+	if errors.Is(err, store.ErrUserExists) {
+		fail(w, http.StatusConflict, "用户名已被使用")
+		return
+	}
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "更新失败："+err.Error())
+		return
+	}
+	ok(w, nil)
+}
+
+// handleAdminResetPassword 处理 PUT /api/admin/users/{id}/password：重置用户密码。
+func (s *Server) handleAdminResetPassword(w http.ResponseWriter, r *http.Request) {
+	st := s.getStore()
+	id, err := pathID(r, "id")
+	if err != nil {
+		fail(w, http.StatusBadRequest, "无效的用户 id")
+		return
+	}
+	var body struct {
+		Password string `json:"password"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		fail(w, http.StatusBadRequest, "请求格式错误")
+		return
+	}
+	if len(body.Password) < 6 {
+		fail(w, http.StatusBadRequest, "密码至少 6 位")
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "密码加密失败")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	err = st.UpdatePassword(ctx, id, string(hash))
+	if errors.Is(err, store.ErrUserNotFound) {
+		fail(w, http.StatusNotFound, "用户不存在")
+		return
+	}
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "重置失败："+err.Error())
+		return
+	}
+	ok(w, nil)
+}
+
+// handleAdminDeleteUser 处理 DELETE /api/admin/users/{id}：删除用户。
+func (s *Server) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
+	st := s.getStore()
+	id, err := pathID(r, "id")
+	if err != nil {
+		fail(w, http.StatusBadRequest, "无效的用户 id")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	err = st.DeleteUser(ctx, id)
+	if errors.Is(err, store.ErrUserNotFound) {
+		fail(w, http.StatusNotFound, "用户不存在")
+		return
+	}
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "删除失败："+err.Error())
+		return
+	}
+	ok(w, nil)
+}

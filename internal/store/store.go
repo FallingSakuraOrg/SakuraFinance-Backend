@@ -241,6 +241,58 @@ func (s *Store) AddBalance(ctx context.Context, userID int64, amount float64) (f
 	return u.Balance, nil
 }
 
+// AdminUpdateUser 管理员修改用户的昵称与用户名。
+// 用户名冲突时归一化为 ErrUserExists；用户不存在返回 ErrUserNotFound。
+func (s *Store) AdminUpdateUser(ctx context.Context, id int64, nickname, username string) error {
+	query := s.rebind("UPDATE users SET nickname = ?, username = ?, updated_at = ? WHERE id = ?")
+	res, err := s.db.ExecContext(ctx, query, nickname, username, time.Now(), id)
+	if err != nil {
+		return wrapInsertErr(err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+// UpdatePassword 重置用户密码（传入已加密的 bcrypt 哈希）。
+func (s *Store) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
+	query := s.rebind("UPDATE users SET password = ?, updated_at = ? WHERE id = ?")
+	res, err := s.db.ExecContext(ctx, query, passwordHash, time.Now(), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+// DeleteUser 删除用户，同时清理其购物车与云服务器实例，避免残留脏数据。
+// 历史订单与订单明细保留以备查账。
+func (s *Store) DeleteUser(ctx context.Context, id int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, s.rebind("DELETE FROM cart_items WHERE user_id = ?"), id); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, s.rebind("DELETE FROM instances WHERE user_id = ?"), id); err != nil {
+		return err
+	}
+	res, err := tx.ExecContext(ctx, s.rebind("DELETE FROM users WHERE id = ?"), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrUserNotFound
+	}
+	return tx.Commit()
+}
+
 // wrapInsertErr 将唯一约束冲突归一化为 ErrUserExists。
 func wrapInsertErr(err error) error {
 	if err == nil {

@@ -81,6 +81,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/admin/admins", s.requireAdmin(s.handleAdminListAdmins))
 	mux.HandleFunc("POST /api/admin/admins", s.requireAdmin(s.handleAdminCreateAdmin))
 	mux.HandleFunc("GET /api/admin/users", s.requireAdmin(s.handleAdminListUsers))
+	mux.HandleFunc("PUT /api/admin/users/{id}", s.requireAdmin(s.handleAdminUpdateUser))
+	mux.HandleFunc("DELETE /api/admin/users/{id}", s.requireAdmin(s.handleAdminDeleteUser))
+	mux.HandleFunc("PUT /api/admin/users/{id}/password", s.requireAdmin(s.handleAdminResetPassword))
 	mux.HandleFunc("POST /api/admin/users/{id}/recharge", s.requireAdmin(s.handleAdminRecharge))
 
 	// 提供已上传的 logo 静态访问。
