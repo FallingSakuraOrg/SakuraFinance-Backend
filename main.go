@@ -39,6 +39,9 @@ func main() {
 		}
 		srv.AttachDB(db, store.New(db, cfg.DBType))
 		log.Printf("已加载现有配置: %s (数据库: %s)", cfg.Name, cfg.DBType)
+		if cfg.AdminSlug != "" {
+			log.Printf("管理后台登录入口: /admin/%s/login", cfg.AdminSlug)
+		}
 	} else {
 		log.Print("系统尚未初始化，等待前端完成 /api/init")
 	}
