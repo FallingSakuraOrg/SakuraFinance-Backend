@@ -15,6 +15,7 @@ import (
 	"github.com/RoyOfficial/sakura-finance-backend/internal/database"
 	"github.com/RoyOfficial/sakura-finance-backend/internal/store"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -33,6 +34,17 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleInitStatus(w http.ResponseWriter, r *http.Request) {
 	initialized := s.cfg.IsInitialized() && s.cfg.IsAdminCreated()
 	writeJSON(w, http.StatusOK, map[string]any{"initialized": initialized})
+}
+
+// handleGetConfig 处理 GET /api/config：公开返回前台展示所需的系统信息。
+// 仅暴露名称、简介、logo 路径，绝不返回数据库连接等敏感字段。
+func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
+	cfg := s.cfg.Get()
+	ok(w, map[string]any{
+		"name":     cfg.Name,
+		"intro":    cfg.Intro,
+		"logoPath": cfg.LogoPath,
+	})
 }
 
 // handleInit 处理 POST /api/init：保存系统配置、连接数据库并建表。
@@ -102,6 +114,14 @@ func (s *Server) handleInit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg.Initialized = true
+	// 生成 JWT 签名密钥并持久化，重启后仍可校验已签发的 token。
+	secret, err := randomSecret()
+	if err != nil {
+		_ = db.Close()
+		fail(w, http.StatusInternalServerError, "密钥生成失败")
+		return
+	}
+	cfg.JWTSecret = secret
 	if err := s.cfg.Save(cfg); err != nil {
 		_ = db.Close()
 		fail(w, http.StatusInternalServerError, "配置保存失败："+err.Error())
@@ -162,6 +182,7 @@ func (s *Server) handleCreateAdmin(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	user := &store.User{
+		UUID:     uuid.NewString(),
 		Nickname: body.Nickname,
 		Username: body.Username,
 		Email:    body.Email,

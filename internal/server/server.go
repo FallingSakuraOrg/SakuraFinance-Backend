@@ -42,7 +42,11 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/init", s.handleInitStatus)
 	mux.HandleFunc("POST /api/init", s.handleInit)
+	mux.HandleFunc("GET /api/config", s.handleGetConfig)
 	mux.HandleFunc("POST /api/admin", s.handleCreateAdmin)
+	mux.HandleFunc("POST /api/register", s.handleRegister)
+	mux.HandleFunc("POST /api/login", s.handleLogin)
+	mux.HandleFunc("GET /api/me", s.requireAuth(s.handleMe))
 	mux.HandleFunc("GET /api/status", s.handleStatus)
 
 	// 提供已上传的 logo 静态访问。

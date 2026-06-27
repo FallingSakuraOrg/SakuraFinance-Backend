@@ -28,6 +28,7 @@ type SystemConfig struct {
 	DBUser        string `json:"dbUser,omitempty"`
 	DBPassword    string `json:"dbPassword,omitempty"`
 	DBName        string `json:"dbName,omitempty"`
+	JWTSecret     string `json:"jwtSecret,omitempty"`     // JWT 签名密钥，初始化时随机生成
 	Initialized   bool   `json:"initialized"`   // 系统配置是否已完成
 	AdminCreated  bool   `json:"adminCreated"`  // 管理员是否已创建
 }
@@ -116,4 +117,11 @@ func (m *Manager) IsAdminCreated() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.current.AdminCreated
+}
+
+// JWTSecret 返回 JWT 签名密钥。
+func (m *Manager) JWTSecret() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.current.JWTSecret
 }

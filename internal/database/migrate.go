@@ -25,11 +25,15 @@ func usersTableDDL(dbType config.DBType) []string {
 		return []string{`
 CREATE TABLE IF NOT EXISTS users (
 	id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+	uuid         VARCHAR(36)  NOT NULL UNIQUE,
 	nickname     VARCHAR(64)  NOT NULL,
 	username     VARCHAR(64)  NOT NULL UNIQUE,
 	email        VARCHAR(128) NOT NULL UNIQUE,
 	password     VARCHAR(255) NOT NULL,
 	role         VARCHAR(16)  NOT NULL DEFAULT 'user',
+	balance      DECIMAL(14,2) NOT NULL DEFAULT 0,
+	qq           VARCHAR(20)  NOT NULL DEFAULT '',
+	phone        VARCHAR(20)  NOT NULL DEFAULT '',
 	created_at   DATETIME     NOT NULL,
 	updated_at   DATETIME     NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`}
@@ -38,11 +42,15 @@ CREATE TABLE IF NOT EXISTS users (
 		return []string{`
 CREATE TABLE IF NOT EXISTS users (
 	id           BIGSERIAL    PRIMARY KEY,
+	uuid         VARCHAR(36)  NOT NULL UNIQUE,
 	nickname     VARCHAR(64)  NOT NULL,
 	username     VARCHAR(64)  NOT NULL UNIQUE,
 	email        VARCHAR(128) NOT NULL UNIQUE,
 	password     VARCHAR(255) NOT NULL,
 	role         VARCHAR(16)  NOT NULL DEFAULT 'user',
+	balance      NUMERIC(14,2) NOT NULL DEFAULT 0,
+	qq           VARCHAR(20)  NOT NULL DEFAULT '',
+	phone        VARCHAR(20)  NOT NULL DEFAULT '',
 	created_at   TIMESTAMPTZ  NOT NULL,
 	updated_at   TIMESTAMPTZ  NOT NULL
 );`}
@@ -51,11 +59,15 @@ CREATE TABLE IF NOT EXISTS users (
 		return []string{`
 CREATE TABLE IF NOT EXISTS users (
 	id           INTEGER PRIMARY KEY AUTOINCREMENT,
+	uuid         TEXT NOT NULL UNIQUE,
 	nickname     TEXT NOT NULL,
 	username     TEXT NOT NULL UNIQUE,
 	email        TEXT NOT NULL UNIQUE,
 	password     TEXT NOT NULL,
 	role         TEXT NOT NULL DEFAULT 'user',
+	balance      REAL NOT NULL DEFAULT 0,
+	qq           TEXT NOT NULL DEFAULT '',
+	phone        TEXT NOT NULL DEFAULT '',
 	created_at   DATETIME NOT NULL,
 	updated_at   DATETIME NOT NULL
 );`}
