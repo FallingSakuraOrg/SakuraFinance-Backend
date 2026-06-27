@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -274,8 +275,12 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	body.Nickname = strings.TrimSpace(body.Nickname)
 	body.Email = strings.TrimSpace(body.Email)
-	if body.Nickname == "" || body.Email == "" {
-		fail(w, http.StatusBadRequest, "昵称和邮箱不能为空")
+	if body.Nickname == "" {
+		fail(w, http.StatusBadRequest, "昵称不能为空")
+		return
+	}
+	if matched, _ := regexp.MatchString(`^[^\s@]+@[^\s@]+\.[^\s@]+$`, body.Email); !matched {
+		fail(w, http.StatusBadRequest, "邮箱格式不正确")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
